@@ -12,7 +12,10 @@ export function getSupabase(): SupabaseClient | null {
   if (cached) return cached;
 
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // 2025 신규 키 체계: sb_secret_... (구 service_role JWT 대체).
+  // 레거시 키도 fallback 으로 허용.
+  const key =
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
 
   cached = createClient(url, key, {

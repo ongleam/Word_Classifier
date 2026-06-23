@@ -31,7 +31,7 @@ npm run dev                         # http://localhost:3000
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API (서버 전용) |
 | `SUPABASE_URL` | Supabase 프로젝트 URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role 키 (서버 전용) |
+| `SUPABASE_SECRET_KEY` | Supabase secret 키 `sb_secret_...` (2025 신규 체계, 서버 전용) |
 
 > 셋 모두 **서버 전용**입니다. `NEXT_PUBLIC_` 접두를 붙이지 마세요(브라우저 노출 위험).
 
