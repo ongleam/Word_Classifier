@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { computeMetrics } from "@/lib/sms";
+
+const MAX_DROP_CHARS = 4000; // analyze API 본문 한도와 동일
 
 export function MessageInput({
   value,
@@ -15,6 +18,38 @@ export function MessageInput({
 }) {
   const m = computeMetrics(value);
   const overSms = m.byteLength > m.byteLimitSMS;
+
+  const [dragOver, setDragOver] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
+
+  async function readDroppedFile(file: File) {
+    setDropError(null);
+    // 텍스트 계열만 허용 (.txt/.csv 또는 빈 type)
+    const okType =
+      file.type.startsWith("text/") ||
+      /\.(txt|csv|md)$/i.test(file.name) ||
+      file.type === "";
+    if (!okType) {
+      setDropError("텍스트 파일(.txt, .csv)만 끌어다 놓을 수 있습니다.");
+      return;
+    }
+    try {
+      const text = (await file.text()).trim();
+      onChange(text.slice(0, MAX_DROP_CHARS));
+      if (text.length > MAX_DROP_CHARS) {
+        setDropError(`파일이 길어 앞 ${MAX_DROP_CHARS}자만 불러왔습니다.`);
+      }
+    } catch {
+      setDropError("파일을 읽지 못했습니다.");
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void readDroppedFile(file);
+  }
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -31,13 +66,32 @@ export function MessageInput({
         </span>
       </div>
 
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="점검할 마케팅 SMS/LMS 본문을 붙여넣으세요."
-        rows={7}
-        className="scroll-thin w-full resize-none rounded-lg border border-slate-300 p-3 text-sm leading-relaxed text-slate-800 outline-none focus:border-nh-green focus:ring-2 focus:ring-nh-green/20"
-      />
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        className="relative"
+      >
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="점검할 마케팅 SMS/LMS 본문을 붙여넣거나, 텍스트 파일(.txt, .csv)을 끌어다 놓으세요."
+          rows={7}
+          className={`scroll-thin w-full resize-none rounded-lg border p-3 text-sm leading-relaxed text-slate-800 outline-none focus:border-nh-green focus:ring-2 focus:ring-nh-green/20 ${
+            dragOver ? "border-nh-green" : "border-slate-300"
+          }`}
+        />
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border-2 border-dashed border-nh-green bg-nh-green/5 text-sm font-medium text-nh-greenDark">
+            텍스트 파일을 여기에 놓으세요
+          </div>
+        )}
+      </div>
+
+      {dropError && <p className="mt-1.5 text-xs text-amber-600">{dropError}</p>}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
         <span>{m.charCount}자</span>
