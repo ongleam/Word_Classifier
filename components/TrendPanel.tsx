@@ -15,7 +15,7 @@ export function TrendPanel({
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-900">
-          ③ 메시지 트렌드 분석
+          ③ 트렌드 · 분석 내역
         </h2>
         {trend && (
           <span className="text-xs text-slate-400">누적 {trend.total}건</span>
@@ -99,28 +99,44 @@ export function TrendPanel({
             </div>
           )}
 
-          {/* 최근 점검 내역 */}
-          {trend.recent.length > 0 && (
+          {/* 분석 내역 (지금까지 분석한 전체) */}
+          {trend.history.length > 0 && (
             <div>
               <div className="mb-2 text-sm font-medium text-slate-600">
-                최근 점검 내역
+                분석 내역 ({trend.history.length}건)
               </div>
-              <ul className="scroll-thin max-h-40 space-y-1 overflow-y-auto text-sm">
-                {trend.recent.map((r) => (
+              <ul className="scroll-thin max-h-80 space-y-2 overflow-y-auto pr-1">
+                {trend.history.map((h) => (
                   <li
-                    key={r.id}
-                    className="flex items-center gap-2 rounded-md border border-slate-100 px-2.5 py-1.5"
+                    key={h.id}
+                    className="rounded-lg border border-slate-100 p-2.5 text-sm"
                   >
-                    <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
-                        r.classification === "광고성"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-sky-100 text-sky-700"
-                      }`}
-                    >
-                      {r.classification}
-                    </span>
-                    <span className="truncate text-slate-600">{r.snippet}</span>
+                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
+                          h.classification === "광고성"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-sky-100 text-sky-700"
+                        }`}
+                      >
+                        {h.classification}
+                      </span>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                        {h.topic}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        신뢰도 {h.confidence}%
+                      </span>
+                      {h.typo_count > 0 && (
+                        <span className="text-xs text-red-500">
+                          오탈자 {h.typo_count}
+                        </span>
+                      )}
+                      <span className="ml-auto text-xs text-slate-400">
+                        {fmtTime(h.created_at)}
+                      </span>
+                    </div>
+                    <p className="line-clamp-2 text-slate-600">{h.content}</p>
                   </li>
                 ))}
               </ul>
@@ -130,6 +146,16 @@ export function TrendPanel({
       )}
     </section>
   );
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}/${dd} ${hh}:${mi}`;
 }
 
 function BarList({

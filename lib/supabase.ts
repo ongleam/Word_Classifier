@@ -20,6 +20,11 @@ export function getSupabase(): SupabaseClient | null {
 
   cached = createClient(url, key, {
     auth: { persistSession: false },
+    global: {
+      // Next.js 가 route handler 내부 fetch 를 기본 캐싱하므로, Supabase REST
+      // 호출이 옛 응답을 반환하는 문제를 막기 위해 항상 no-store 로 강제한다.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return cached;
 }

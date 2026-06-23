@@ -11,7 +11,7 @@ type Tab = "input" | "result" | "trend";
 const TABS: { key: Tab; label: string }[] = [
   { key: "input", label: "① 본문 입력" },
   { key: "result", label: "② 분석 결과" },
-  { key: "trend", label: "③ 트렌드" },
+  { key: "trend", label: "③ 트렌드·내역" },
 ];
 
 export default function Page() {
@@ -22,9 +22,12 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [batchLoading, setBatchLoading] = useState(false);
+
   const [trend, setTrend] = useState<TrendData | null>(null);
   const [trendConfigured, setTrendConfigured] = useState(true);
   const [trendLoading, setTrendLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
 
   const loadTrends = useCallback(async () => {
     setTrendLoading(true);
@@ -70,6 +73,37 @@ export default function Page() {
     }
   }, [content, loadTrends]);
 
+  const analyzeBatch = useCallback(
+    async (messages: string[]) => {
+      setBatchLoading(true);
+      setToast(null);
+      try {
+        const res = await fetch("/api/analyze/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: messages }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setToast(json.error ?? "일괄 분석에 실패했습니다.");
+        } else {
+          setToast(
+            `일괄 분석 완료 — 성공 ${json.ok}건${
+              json.failed ? `, 실패 ${json.failed}건` : ""
+            }${json.truncated ? ` (최대 ${json.maxBatch}건까지만 처리)` : ""}`,
+          );
+          await loadTrends();
+          setTab("trend"); // 결과는 트렌드·내역 탭에서 확인
+        }
+      } catch {
+        setToast("네트워크 오류가 발생했습니다.");
+      } finally {
+        setBatchLoading(false);
+      }
+    },
+    [loadTrends],
+  );
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       {/* 탭 바 */}
@@ -90,6 +124,20 @@ export default function Page() {
         ))}
       </div>
 
+      {/* 토스트 */}
+      {toast && (
+        <div className="mb-3 flex items-center justify-between rounded-lg bg-slate-800 px-4 py-2.5 text-sm text-white">
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-3 text-slate-400 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 패널 */}
       {tab === "input" && (
         <MessageInput
@@ -97,6 +145,8 @@ export default function Page() {
           onChange={setContent}
           onAnalyze={analyze}
           loading={loading}
+          onAnalyzeBatch={analyzeBatch}
+          batchLoading={batchLoading}
         />
       )}
       {tab === "result" && (

@@ -1,0 +1,88 @@
+import { NextResponse } from "next/server";
+import { analyzeMessage } from "@/lib/analyze";
+import { computeMetrics } from "@/lib/sms";
+import { getSupabase, ANALYSES_TABLE } from "@/lib/supabase";
+
+export const runtime = "nodejs";
+export const maxDuration = 300; // 다건 분석 — 넉넉히
+
+const MAX_BATCH = 50; // 한 번에 처리할 최대 건수
+const CONCURRENCY = 4; // Claude 동시 호출 제한
+
+export async function POST(req: Request) {
+  let contents: string[];
+  try {
+    const body = await req.json();
+    contents = Array.isArray(body?.contents)
+      ? body.contents
+          .map((c: unknown) => (typeof c === "string" ? c.trim() : ""))
+          .filter((c: string) => c.length > 0 && c.length <= 4000)
+      : [];
+  } catch {
+    return NextResponse.json({ error: "잘못된 요청 형식입니다." }, { status: 400 });
+  }
+
+  if (contents.length === 0) {
+    return NextResponse.json(
+      { error: "분석할 본문이 없습니다." },
+      { status: 400 },
+    );
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: "서버에 ANTHROPIC_API_KEY 가 설정되지 않았습니다." },
+      { status: 500 },
+    );
+  }
+
+  const truncated = contents.length > MAX_BATCH;
+  const batch = contents.slice(0, MAX_BATCH);
+  const supabase = getSupabase();
+
+  let ok = 0;
+  let failed = 0;
+  let saved = 0;
+
+  // 동시성 제한 풀
+  let cursor = 0;
+  async function worker() {
+    while (cursor < batch.length) {
+      const content = batch[cursor++];
+      try {
+        const metrics = computeMetrics(content);
+        const analysis = await analyzeMessage(content);
+        ok++;
+        if (supabase) {
+          const { error } = await supabase.from(ANALYSES_TABLE).insert({
+            content,
+            classification: analysis.classification,
+            confidence: analysis.confidence,
+            topic: analysis.topic,
+            keywords: analysis.keywords,
+            typo_count: analysis.typos.length,
+            byte_length: metrics.byteLength,
+            result: analysis,
+          });
+          if (!error) saved++;
+        }
+      } catch (err) {
+        failed++;
+        console.error("[analyze/batch] 1건 실패:", err);
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, batch.length) }, worker),
+  );
+
+  return NextResponse.json({
+    requested: contents.length,
+    processed: batch.length,
+    ok,
+    failed,
+    saved,
+    truncated,
+    maxBatch: MAX_BATCH,
+  });
+}

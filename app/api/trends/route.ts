@@ -14,7 +14,9 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from(ANALYSES_TABLE)
-    .select("id, created_at, content, classification, topic, keywords")
+    .select(
+      "id, created_at, content, classification, topic, keywords, confidence, typo_count, byte_length",
+    )
     .order("created_at", { ascending: false })
     .limit(500);
 
@@ -28,7 +30,15 @@ export async function GET() {
 
   const rows = (data ?? []) as Pick<
     SavedAnalysis,
-    "id" | "created_at" | "content" | "classification" | "topic" | "keywords"
+    | "id"
+    | "created_at"
+    | "content"
+    | "classification"
+    | "topic"
+    | "keywords"
+    | "confidence"
+    | "typo_count"
+    | "byte_length"
   >[];
 
   const adCount = rows.filter((r) => r.classification === "광고성").length;
@@ -64,12 +74,16 @@ export async function GET() {
     adRatio: rows.length ? adCount / rows.length : 0,
     topKeywords,
     topicDistribution,
-    recent: rows.slice(0, 8).map((r) => ({
+    history: rows.map((r) => ({
       id: r.id,
       created_at: r.created_at,
-      snippet: r.content.slice(0, 40),
+      content: r.content.slice(0, 200),
       classification: r.classification,
       topic: r.topic ?? "미분류",
+      confidence: r.confidence ?? 0,
+      typo_count: r.typo_count ?? 0,
+      byte_length: r.byte_length ?? 0,
+      keywords: Array.isArray(r.keywords) ? r.keywords : [],
     })),
   };
 
@@ -84,6 +98,6 @@ function emptyTrend(): TrendData {
     adRatio: 0,
     topKeywords: [],
     topicDistribution: [],
-    recent: [],
+    history: [],
   };
 }

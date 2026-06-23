@@ -56,6 +56,18 @@ export interface SavedAnalysis {
   result: AnalysisResult;
 }
 
+export interface HistoryItem {
+  id: string;
+  created_at: string;
+  content: string;
+  classification: Classification;
+  topic: string;
+  confidence: number;
+  typo_count: number;
+  byte_length: number;
+  keywords: string[];
+}
+
 export interface TrendData {
   total: number;
   adCount: number; // 광고성 건수
@@ -63,11 +75,5 @@ export interface TrendData {
   adRatio: number; // 광고성 비율 (0–1)
   topKeywords: { keyword: string; count: number }[];
   topicDistribution: { topic: string; count: number }[];
-  recent: {
-    id: string;
-    created_at: string;
-    snippet: string;
-    classification: Classification;
-    topic: string;
-  }[];
+  history: HistoryItem[]; // 지금까지 분석한 전체 내역 (최신순)
 }
