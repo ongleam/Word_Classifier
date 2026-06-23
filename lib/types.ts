@@ -45,16 +45,11 @@ export interface AnalyzeResponse {
 // 일괄 분석 — 건별 결과 + 요약
 export interface BatchItemResult {
   index: number;
-  content: string; // 본문 (스니펫)
+  content: string; // 본문 전체 (펼치기용)
   ok: boolean;
   error?: string;
-  classification?: Classification;
-  topic?: string;
-  confidence?: number;
-  typoCount?: number;
-  messageType?: "SMS" | "LMS";
-  byteLength?: number;
-  compliance?: Compliance;
+  analysis?: AnalysisResult; // 펼쳤을 때 보여줄 전체 분석
+  metrics?: MessageMetrics;
 }
 
 export interface BatchResponse {

@@ -51,7 +51,6 @@ export async function POST(req: Request) {
     while (cursor < batch.length) {
       const index = cursor++;
       const content = batch[index];
-      const snippet = content.slice(0, 120);
       try {
         const metrics = computeMetrics(content);
         const analysis = await analyzeMessage(content);
@@ -71,22 +70,17 @@ export async function POST(req: Request) {
         }
         results[index] = {
           index,
-          content: snippet,
+          content,
           ok: true,
-          classification: analysis.classification,
-          topic: analysis.topic,
-          confidence: analysis.confidence,
-          typoCount: analysis.typos.length,
-          messageType: metrics.messageType,
-          byteLength: metrics.byteLength,
-          compliance: analysis.compliance,
+          analysis,
+          metrics,
         };
       } catch (err) {
         failed++;
         console.error("[analyze/batch] 1건 실패:", err);
         results[index] = {
           index,
-          content: snippet,
+          content,
           ok: false,
           error: "분석 실패",
         };

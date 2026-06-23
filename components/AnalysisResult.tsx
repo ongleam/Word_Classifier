@@ -1,6 +1,12 @@
 "use client";
 
-import type { AnalyzeResponse, BatchResponse, Compliance } from "@/lib/types";
+import { useState } from "react";
+import type {
+  AnalyzeResponse,
+  BatchItemResult,
+  BatchResponse,
+  Compliance,
+} from "@/lib/types";
 
 export function AnalysisResult({
   data,
@@ -90,10 +96,10 @@ export function AnalysisResult({
 
 function BatchResultView({ batch }: { batch: BatchResponse }) {
   const adCount = batch.results.filter(
-    (r) => r.classification === "광고성",
+    (r) => r.analysis?.classification === "광고성",
   ).length;
   const infoCount = batch.results.filter(
-    (r) => r.classification === "정보성",
+    (r) => r.analysis?.classification === "정보성",
   ).length;
 
   return (
@@ -120,65 +126,108 @@ function BatchResultView({ batch }: { batch: BatchResponse }) {
         </p>
       )}
 
-      {/* 건별 결과 */}
-      <ul className="scroll-thin max-h-[28rem] space-y-2 overflow-y-auto pr-1">
-        {batch.results.map((r) => {
-          const flagged =
-            r.ok &&
-            r.compliance?.needsAdPrefix &&
-            (!r.compliance.hasAdPrefix ||
-              !r.compliance.hasOptOut ||
-              !r.compliance.hasSender);
-          return (
-            <li
-              key={r.index}
-              className="rounded-lg border border-slate-100 p-2.5 text-sm"
-            >
-              <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-slate-300">{r.index + 1}.</span>
-                {r.ok ? (
-                  <>
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                        r.classification === "광고성"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-sky-100 text-sky-700"
-                      }`}
-                    >
-                      {r.classification}
-                    </span>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                      {r.topic}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {r.confidence}%
-                    </span>
-                    {r.typoCount ? (
-                      <span className="text-xs text-red-500">
-                        오탈자 {r.typoCount}
-                      </span>
-                    ) : null}
-                    {flagged && (
-                      <span className="rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-600">
-                        표기 위반
-                      </span>
-                    )}
-                    <span className="ml-auto text-xs text-slate-300">
-                      {r.messageType}
-                    </span>
-                  </>
-                ) : (
-                  <span className="rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-600">
-                    분석 실패
-                  </span>
-                )}
-              </div>
-              <p className="line-clamp-2 text-slate-600">{r.content}</p>
-            </li>
-          );
-        })}
+      {/* 건별 결과 (클릭하면 펼쳐짐) */}
+      <ul className="scroll-thin max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+        {batch.results.map((r) => (
+          <BatchItem key={r.index} r={r} />
+        ))}
       </ul>
     </div>
+  );
+}
+
+function BatchItem({ r }: { r: BatchItemResult }) {
+  const [open, setOpen] = useState(false);
+  const a = r.analysis;
+  const flagged =
+    a?.compliance?.needsAdPrefix &&
+    (!a.compliance.hasAdPrefix ||
+      !a.compliance.hasOptOut ||
+      !a.compliance.hasSender);
+
+  return (
+    <li className="rounded-lg border border-slate-100">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-start gap-2 p-2.5 text-left text-sm hover:bg-slate-50"
+      >
+        <span className="mt-0.5 shrink-0 text-xs text-slate-300">
+          {r.index + 1}.
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            {r.ok && a ? (
+              <>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                    a.classification === "광고성"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-sky-100 text-sky-700"
+                  }`}
+                >
+                  {a.classification}
+                </span>
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                  {a.topic}
+                </span>
+                <span className="text-xs text-slate-400">{a.confidence}%</span>
+                {a.typos.length > 0 && (
+                  <span className="text-xs text-red-500">
+                    오탈자 {a.typos.length}
+                  </span>
+                )}
+                {flagged && (
+                  <span className="rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-600">
+                    표기 위반
+                  </span>
+                )}
+                {r.metrics && (
+                  <span className="ml-auto text-xs text-slate-300">
+                    {r.metrics.messageType}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="rounded bg-red-50 px-1.5 py-0.5 text-xs text-red-600">
+                분석 실패
+              </span>
+            )}
+          </div>
+          <p className={open ? "text-slate-600" : "line-clamp-2 text-slate-600"}>
+            {r.content}
+          </p>
+        </div>
+        <span className="mt-0.5 shrink-0 text-xs text-slate-400">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && r.ok && a && (
+        <div className="space-y-3 border-t border-slate-100 p-3 pt-3">
+          {a.reasoning && <p className="text-sm text-slate-600">{a.reasoning}</p>}
+          {a.summary && (
+            <div className="rounded-lg bg-slate-50 p-2.5 text-sm text-slate-600">
+              {a.summary}
+            </div>
+          )}
+          {a.keywords.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {a.keywords.map((k) => (
+                <span
+                  key={k}
+                  className="rounded-full bg-nh-green/10 px-2.5 py-0.5 text-xs font-medium text-nh-greenDark"
+                >
+                  #{k}
+                </span>
+              ))}
+            </div>
+          )}
+          <ComplianceBlock c={a.compliance} />
+          <TypoBlock typos={a.typos} />
+        </div>
+      )}
+    </li>
   );
 }
 
