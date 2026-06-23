@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { computeMetrics } from "@/lib/sms";
-import { parseMessages } from "@/lib/csv";
+import { parseUpload } from "@/lib/csv";
 
 const MAX_DROP_CHARS = 4000; // analyze API 본문 한도와 동일
 
@@ -34,15 +34,16 @@ export function MessageInput({
     setBatch(null);
     const okType =
       file.type.startsWith("text/") ||
-      /\.(txt|csv|md)$/i.test(file.name) ||
+      file.type === "application/json" ||
+      /\.(txt|csv|md|json)$/i.test(file.name) ||
       file.type === "";
     if (!okType) {
-      setDropError("텍스트 파일(.txt, .csv)만 불러올 수 있습니다.");
+      setDropError("JSON 또는 텍스트 파일(.json, .txt, .csv)만 불러올 수 있습니다.");
       return;
     }
     try {
       const text = await file.text();
-      const messages = parseMessages(text);
+      const messages = parseUpload(text, file.name);
       if (messages.length === 0) {
         setDropError("파일에서 본문을 찾지 못했습니다.");
       } else if (messages.length === 1) {
@@ -97,7 +98,7 @@ export function MessageInput({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.csv,.md,text/*"
+        accept=".json,.txt,.csv,.md,application/json,text/*"
         onChange={handlePick}
         className="hidden"
       />
@@ -154,7 +155,9 @@ export function MessageInput({
             <textarea
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              placeholder="점검할 마케팅 SMS/LMS 본문을 붙여넣거나, 텍스트 파일(.txt, .csv)을 끌어다 놓으세요. 여러 건이면 일괄 분석됩니다."
+              placeholder={
+                '점검할 마케팅 SMS/LMS 본문을 붙여넣거나, 파일을 끌어다 놓으세요.\n여러 건은 JSON 파일로 일괄 분석됩니다. 예: ["문구1", "문구2"] 또는 [{"content":"문구"}]'
+              }
               rows={7}
               className={`scroll-thin w-full resize-none rounded-lg border p-3 text-sm leading-relaxed text-slate-800 outline-none focus:border-nh-green focus:ring-2 focus:ring-nh-green/20 ${
                 dragOver ? "border-nh-green" : "border-slate-300"
@@ -162,7 +165,7 @@ export function MessageInput({
             />
             {dragOver && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border-2 border-dashed border-nh-green bg-nh-green/5 text-sm font-medium text-nh-greenDark">
-                텍스트 파일을 여기에 놓으세요
+                JSON · 텍스트 파일을 여기에 놓으세요
               </div>
             )}
           </div>
