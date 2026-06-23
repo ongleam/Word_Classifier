@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MessageInput } from "@/components/MessageInput";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { TrendPanel } from "@/components/TrendPanel";
-import type { AnalyzeResponse, TrendData } from "@/lib/types";
+import type { AnalyzeResponse, BatchResponse, TrendData } from "@/lib/types";
 
 type Tab = "input" | "result" | "trend";
 
@@ -19,6 +19,7 @@ export default function Page() {
 
   const [content, setContent] = useState("");
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [batchResult, setBatchResult] = useState<BatchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +52,7 @@ export default function Page() {
     if (!content.trim()) return;
     setLoading(true);
     setError(null);
+    setBatchResult(null); // 단일 분석 시 일괄 결과 비움
     setTab("result"); // 분석 시작과 동시에 결과 탭으로 전환
     try {
       const res = await fetch("/api/analyze", {
@@ -77,6 +79,7 @@ export default function Page() {
     async (messages: string[]) => {
       setBatchLoading(true);
       setToast(null);
+      setError(null);
       try {
         const res = await fetch("/api/analyze/batch", {
           method: "POST",
@@ -85,18 +88,22 @@ export default function Page() {
         });
         const json = await res.json();
         if (!res.ok) {
-          setToast(json.error ?? "일괄 분석에 실패했습니다.");
+          setError(json.error ?? "일괄 분석에 실패했습니다.");
+          setBatchResult(null);
         } else {
+          setResult(null); // 단일 결과 비우고 일괄 결과 표시
+          setBatchResult(json as BatchResponse);
           setToast(
             `일괄 분석 완료 — 성공 ${json.ok}건${
               json.failed ? `, 실패 ${json.failed}건` : ""
             }${json.truncated ? ` (최대 ${json.maxBatch}건까지만 처리)` : ""}`,
           );
           await loadTrends();
-          setTab("trend"); // 결과는 트렌드·내역 탭에서 확인
         }
+        setTab("result"); // 건별 결과는 ② 분석 결과 탭에서 확인
       } catch {
-        setToast("네트워크 오류가 발생했습니다.");
+        setError("네트워크 오류가 발생했습니다.");
+        setTab("result");
       } finally {
         setBatchLoading(false);
       }
@@ -150,7 +157,12 @@ export default function Page() {
         />
       )}
       {tab === "result" && (
-        <AnalysisResult data={result} loading={loading} error={error} />
+        <AnalysisResult
+          data={result}
+          batch={batchResult}
+          loading={loading || batchLoading}
+          error={error}
+        />
       )}
       {tab === "trend" && (
         <TrendPanel

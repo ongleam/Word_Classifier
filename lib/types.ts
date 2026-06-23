@@ -42,6 +42,32 @@ export interface AnalyzeResponse {
   saved: boolean; // Supabase 저장 성공 여부
 }
 
+// 일괄 분석 — 건별 결과 + 요약
+export interface BatchItemResult {
+  index: number;
+  content: string; // 본문 (스니펫)
+  ok: boolean;
+  error?: string;
+  classification?: Classification;
+  topic?: string;
+  confidence?: number;
+  typoCount?: number;
+  messageType?: "SMS" | "LMS";
+  byteLength?: number;
+  compliance?: Compliance;
+}
+
+export interface BatchResponse {
+  requested: number;
+  processed: number;
+  ok: number;
+  failed: number;
+  saved: number;
+  truncated: boolean;
+  maxBatch: number;
+  results: BatchItemResult[];
+}
+
 // Supabase 에 적재되는 레코드 + 트렌드 집계 응답
 export interface SavedAnalysis {
   id: string;

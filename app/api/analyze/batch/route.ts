@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { analyzeMessage } from "@/lib/analyze";
 import { computeMetrics } from "@/lib/sms";
 import { getSupabase, ANALYSES_TABLE } from "@/lib/supabase";
+import type { BatchItemResult } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 다건 분석 — 넉넉히
@@ -42,12 +43,15 @@ export async function POST(req: Request) {
   let ok = 0;
   let failed = 0;
   let saved = 0;
+  const results: BatchItemResult[] = new Array(batch.length);
 
-  // 동시성 제한 풀
+  // 동시성 제한 풀 (결과는 index 로 보존해 순서 유지)
   let cursor = 0;
   async function worker() {
     while (cursor < batch.length) {
-      const content = batch[cursor++];
+      const index = cursor++;
+      const content = batch[index];
+      const snippet = content.slice(0, 120);
       try {
         const metrics = computeMetrics(content);
         const analysis = await analyzeMessage(content);
@@ -65,9 +69,27 @@ export async function POST(req: Request) {
           });
           if (!error) saved++;
         }
+        results[index] = {
+          index,
+          content: snippet,
+          ok: true,
+          classification: analysis.classification,
+          topic: analysis.topic,
+          confidence: analysis.confidence,
+          typoCount: analysis.typos.length,
+          messageType: metrics.messageType,
+          byteLength: metrics.byteLength,
+          compliance: analysis.compliance,
+        };
       } catch (err) {
         failed++;
         console.error("[analyze/batch] 1건 실패:", err);
+        results[index] = {
+          index,
+          content: snippet,
+          ok: false,
+          error: "분석 실패",
+        };
       }
     }
   }
@@ -84,5 +106,6 @@ export async function POST(req: Request) {
     saved,
     truncated,
     maxBatch: MAX_BATCH,
+    results,
   });
 }
