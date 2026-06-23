@@ -1,6 +1,8 @@
 "use client";
 
-import type { TrendData } from "@/lib/types";
+import { useState } from "react";
+import type { AnalysisResult, HistoryItem, TrendData } from "@/lib/types";
+import { AnalysisDetail } from "@/components/AnalysisDetail";
 
 export function TrendPanel({
   trend,
@@ -105,39 +107,9 @@ export function TrendPanel({
               <div className="mb-2 text-sm font-medium text-slate-600">
                 분석 내역 ({trend.history.length}건)
               </div>
-              <ul className="scroll-thin max-h-80 space-y-2 overflow-y-auto pr-1">
+              <ul className="scroll-thin max-h-96 space-y-2 overflow-y-auto pr-1">
                 {trend.history.map((h) => (
-                  <li
-                    key={h.id}
-                    className="rounded-lg border border-slate-100 p-2.5 text-sm"
-                  >
-                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
-                          h.classification === "광고성"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-sky-100 text-sky-700"
-                        }`}
-                      >
-                        {h.classification}
-                      </span>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                        {h.topic}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        신뢰도 {h.confidence}%
-                      </span>
-                      {h.typo_count > 0 && (
-                        <span className="text-xs text-red-500">
-                          오탈자 {h.typo_count}
-                        </span>
-                      )}
-                      <span className="ml-auto text-xs text-slate-400">
-                        {fmtTime(h.created_at)}
-                      </span>
-                    </div>
-                    <p className="line-clamp-2 text-slate-600">{h.content}</p>
-                  </li>
+                  <HistoryRow key={h.id} h={h} />
                 ))}
               </ul>
             </div>
@@ -145,6 +117,87 @@ export function TrendPanel({
         </div>
       )}
     </section>
+  );
+}
+
+function HistoryRow({ h }: { h: HistoryItem }) {
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<AnalysisResult | null>(null);
+  const [content, setContent] = useState<string>(h.content);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !detail && !loading) {
+      setLoading(true);
+      setErr(null);
+      try {
+        const res = await fetch(`/api/analysis/${h.id}`, { cache: "no-store" });
+        const json = await res.json();
+        if (!res.ok) {
+          setErr(json.error ?? "상세를 불러오지 못했습니다.");
+        } else {
+          setDetail(json.analysis as AnalysisResult);
+          if (json.content) setContent(json.content);
+        }
+      } catch {
+        setErr("상세를 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  return (
+    <li className="rounded-lg border border-slate-100">
+      <button
+        type="button"
+        onClick={toggle}
+        className="flex w-full items-start gap-2 p-2.5 text-left text-sm hover:bg-slate-50"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span
+              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${
+                h.classification === "광고성"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-sky-100 text-sky-700"
+              }`}
+            >
+              {h.classification}
+            </span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+              {h.topic}
+            </span>
+            <span className="text-xs text-slate-400">신뢰도 {h.confidence}%</span>
+            {h.typo_count > 0 && (
+              <span className="text-xs text-red-500">오탈자 {h.typo_count}</span>
+            )}
+            <span className="ml-auto text-xs text-slate-400">
+              {fmtTime(h.created_at)}
+            </span>
+          </div>
+          <p className={open ? "text-slate-600" : "line-clamp-2 text-slate-600"}>
+            {content}
+          </p>
+        </div>
+        <span className="mt-0.5 shrink-0 text-xs text-slate-400">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-100 p-3">
+          {loading && (
+            <p className="text-center text-xs text-slate-400">불러오는 중…</p>
+          )}
+          {err && <p className="text-xs text-amber-600">{err}</p>}
+          {detail && <AnalysisDetail analysis={detail} />}
+        </div>
+      )}
+    </li>
   );
 }
 
