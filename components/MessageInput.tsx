@@ -2,29 +2,6 @@
 
 import { computeMetrics } from "@/lib/sms";
 
-const SAMPLES: { label: string; text: string }[] = [
-  {
-    label: "광고 (완비)",
-    text:
-      "(광고)NH농협 가을 정기예금 특별금리 연 4.1% 이벤트! 지금 비대면 가입 시 모바일상품권 증정. 자세히 보기 https://nh.to/abcd 무료거부 080-123-4567",
-  },
-  {
-    label: "광고 (표기누락)",
-    text:
-      "NH올원카드 신규 발급하고 스타벅스 아메리카노 받으세요! 이번주말 한정 혜택 놓치지 마세요 지금신청 nh.to/xyz",
-  },
-  {
-    label: "정보성",
-    text:
-      "[NH농협] 고객님의 계좌에서 2026.06.23 320,000원이 출금되었습니다. 잔액 1,250,000원. 본인거래가 아닐 경우 1588-0000으로 문의주세요.",
-  },
-  {
-    label: "오탈자 포함",
-    text:
-      "(광고)NH투자증권 신규 계좌 개설하시고 거래 수수료 평셍 무료 혜택을 받아보세요. 자세한 내용은 어플에서 확인 하세요. 무료거부 080-999-0000",
-  },
-];
-
 export function MessageInput({
   value,
   onChange,
@@ -69,20 +46,6 @@ export function MessageInput({
           <span className="text-slate-400">/ SMS {m.byteLimitSMS}byte</span>
         </span>
         {overSms && <span className="text-amber-600">→ LMS로 발송됩니다</span>}
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <span className="self-center text-xs text-slate-400">예시:</span>
-        {SAMPLES.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => onChange(s.text)}
-            className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:border-nh-green hover:text-nh-green"
-          >
-            {s.label}
-          </button>
-        ))}
       </div>
 
       <button
