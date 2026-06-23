@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { computeMetrics } from "@/lib/sms";
 
 const MAX_DROP_CHARS = 4000; // analyze API 본문 한도와 동일
@@ -21,6 +21,7 @@ export function MessageInput({
 
   const [dragOver, setDragOver] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function readDroppedFile(file: File) {
     setDropError(null);
@@ -51,20 +52,43 @@ export function MessageInput({
     if (file) void readDroppedFile(file);
   }
 
+  function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void readDroppedFile(file);
+    e.target.value = ""; // 같은 파일 재선택 허용
+  }
+
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-900">① 발송 본문 입력</h2>
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            overSms
-              ? "bg-amber-100 text-amber-700"
-              : "bg-emerald-100 text-emerald-700"
-          }`}
-        >
-          {m.messageType}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-nh-green hover:text-nh-green"
+          >
+            파일 업로드
+          </button>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              overSms
+                ? "bg-amber-100 text-amber-700"
+                : "bg-emerald-100 text-emerald-700"
+            }`}
+          >
+            {m.messageType}
+          </span>
+        </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.csv,.md,text/*"
+        onChange={handlePick}
+        className="hidden"
+      />
 
       <div
         onDrop={handleDrop}
