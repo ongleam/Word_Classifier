@@ -6,7 +6,17 @@ import { AnalysisResult } from "@/components/AnalysisResult";
 import { TrendPanel } from "@/components/TrendPanel";
 import type { AnalyzeResponse, TrendData } from "@/lib/types";
 
+type Tab = "input" | "result" | "trend";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "input", label: "① 본문 입력" },
+  { key: "result", label: "② 분석 결과" },
+  { key: "trend", label: "③ 트렌드" },
+];
+
 export default function Page() {
+  const [tab, setTab] = useState<Tab>("input");
+
   const [content, setContent] = useState("");
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,6 +48,7 @@ export default function Page() {
     if (!content.trim()) return;
     setLoading(true);
     setError(null);
+    setTab("result"); // 분석 시작과 동시에 결과 탭으로 전환
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -50,7 +61,7 @@ export default function Page() {
         setResult(null);
       } else {
         setResult(json as AnalyzeResponse);
-        if (json.saved) loadTrends(); // 저장됐으면 트렌드 갱신
+        if (json.saved) loadTrends();
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
@@ -60,51 +71,44 @@ export default function Page() {
   }, [content, loadTrends]);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6">
-      {/* 헤더 */}
-      <header className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-nh-green text-lg font-black text-white">
-          NH
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-slate-900">
-            SMS 발송 본문 점검 대시보드
-          </h1>
-          <p className="text-xs text-slate-500">
-            NH SMS · PoC — 오탈자 검사 · 광고성/정보성 AI 분류 · 트렌드 분석
-          </p>
-        </div>
-        <span className="ml-auto rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-          Powered by Claude
-        </span>
-      </header>
-
-      {/* 한 화면 3패널 레이아웃 */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <MessageInput
-            value={content}
-            onChange={setContent}
-            onAnalyze={analyze}
-            loading={loading}
-          />
-        </div>
-        <div className="lg:col-span-1">
-          <AnalysisResult data={result} loading={loading} error={error} />
-        </div>
-        <div className="lg:col-span-1">
-          <TrendPanel
-            trend={trend}
-            configured={trendConfigured}
-            loading={trendLoading}
-          />
-        </div>
+    <main className="mx-auto max-w-2xl px-4 py-8">
+      {/* 탭 바 */}
+      <div className="mb-5 flex gap-1 rounded-lg bg-slate-100 p-1">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
+              tab === t.key
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      <footer className="mt-8 text-center text-xs text-slate-400">
-        분석 결과는 AI 추정값으로 참고용이며, 실제 발송 전 담당자 최종 검수가
-        필요합니다.
-      </footer>
+      {/* 패널 */}
+      {tab === "input" && (
+        <MessageInput
+          value={content}
+          onChange={setContent}
+          onAnalyze={analyze}
+          loading={loading}
+        />
+      )}
+      {tab === "result" && (
+        <AnalysisResult data={result} loading={loading} error={error} />
+      )}
+      {tab === "trend" && (
+        <TrendPanel
+          trend={trend}
+          configured={trendConfigured}
+          loading={trendLoading}
+        />
+      )}
     </main>
   );
 }
