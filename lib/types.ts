@@ -87,6 +87,16 @@ export interface HistoryItem {
   typo_count: number;
   byte_length: number;
   keywords: string[];
+  result?: AnalysisResult; // 세션 집계 시 상세를 인라인으로 보유 (별도 조회 불필요)
+}
+
+// 이번 세션에서 분석한 1건 (클라이언트 메모리에만 존재 — 트렌드 집계의 원천)
+export interface SessionEntry {
+  id: string;
+  created_at: string;
+  content: string;
+  metrics: MessageMetrics;
+  analysis: AnalysisResult;
 }
 
 export interface TrendData {
@@ -96,5 +106,5 @@ export interface TrendData {
   adRatio: number; // 광고성 비율 (0–1)
   topKeywords: { keyword: string; count: number }[];
   topicDistribution: { topic: string; count: number }[];
-  history: HistoryItem[]; // 지금까지 분석한 전체 내역 (최신순)
+  history: HistoryItem[]; // 이번 세션에서 분석한 내역 (최신순)
 }

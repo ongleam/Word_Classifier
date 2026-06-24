@@ -1,18 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { AnalysisResult, HistoryItem, TrendData } from "@/lib/types";
+import type { HistoryItem, TrendData } from "@/lib/types";
 import { AnalysisDetail } from "@/components/AnalysisDetail";
 
-export function TrendPanel({
-  trend,
-  configured,
-  loading,
-}: {
-  trend: TrendData | null;
-  configured: boolean;
-  loading: boolean;
-}) {
+export function TrendPanel({ trend }: { trend: TrendData | null }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
@@ -20,25 +12,16 @@ export function TrendPanel({
           ③ 트렌드 · 분석 내역
         </h2>
         {trend && (
-          <span className="text-xs text-slate-400">누적 {trend.total}건</span>
+          <span className="text-xs text-slate-400">
+            이번 세션 {trend.total}건
+          </span>
         )}
       </div>
 
-      {!configured && (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
-          Supabase 가 설정되지 않아 트렌드가 누적되지 않습니다. 환경 변수
-          설정 후 분석 결과가 자동으로 집계됩니다.
-        </p>
-      )}
-
-      {configured && loading && !trend && (
-        <p className="py-8 text-center text-sm text-slate-400">불러오는 중…</p>
-      )}
-
-      {configured && trend && trend.total === 0 && (
+      {trend && trend.total === 0 && (
         <p className="py-8 text-center text-sm text-slate-400">
-          아직 분석된 메시지가 없습니다. 본문을 점검하면 여기에 트렌드가
-          쌓입니다.
+          이번 세션에 분석한 메시지가 없습니다. 본문을 점검하면 여기에
+          트렌드가 쌓입니다.
         </p>
       )}
 
@@ -122,39 +105,14 @@ export function TrendPanel({
 
 function HistoryRow({ h }: { h: HistoryItem }) {
   const [open, setOpen] = useState(false);
-  const [detail, setDetail] = useState<AnalysisResult | null>(null);
-  const [content, setContent] = useState<string>(h.content);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && !detail && !loading) {
-      setLoading(true);
-      setErr(null);
-      try {
-        const res = await fetch(`/api/analysis/${h.id}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok) {
-          setErr(json.error ?? "상세를 불러오지 못했습니다.");
-        } else {
-          setDetail(json.analysis as AnalysisResult);
-          if (json.content) setContent(json.content);
-        }
-      } catch {
-        setErr("상세를 불러오지 못했습니다.");
-      } finally {
-        setLoading(false);
-      }
-    }
-  }
+  const detail = h.result ?? null;
+  const content = h.content;
 
   return (
     <li className="rounded-lg border border-slate-100">
       <button
         type="button"
-        onClick={toggle}
+        onClick={() => setOpen((v) => !v)}
         className="flex w-full items-start gap-2 p-2.5 text-left text-sm hover:bg-slate-50"
       >
         <div className="min-w-0 flex-1">
@@ -188,13 +146,9 @@ function HistoryRow({ h }: { h: HistoryItem }) {
         </span>
       </button>
 
-      {open && (
+      {open && detail && (
         <div className="border-t border-slate-100 p-3">
-          {loading && (
-            <p className="text-center text-xs text-slate-400">불러오는 중…</p>
-          )}
-          {err && <p className="text-xs text-amber-600">{err}</p>}
-          {detail && <AnalysisDetail analysis={detail} />}
+          <AnalysisDetail analysis={detail} />
         </div>
       )}
     </li>

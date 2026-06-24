@@ -1,10 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { MessageInput } from "@/components/MessageInput";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { TrendPanel } from "@/components/TrendPanel";
-import type { AnalyzeResponse, BatchResponse, TrendData } from "@/lib/types";
+import { computeTrend } from "@/lib/trends";
+import type {
+  AnalyzeResponse,
+  BatchResponse,
+  SessionEntry,
+} from "@/lib/types";
+
+function makeId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 type Tab = "input" | "result" | "trend";
 
@@ -25,28 +37,11 @@ export default function Page() {
 
   const [batchLoading, setBatchLoading] = useState(false);
 
-  const [trend, setTrend] = useState<TrendData | null>(null);
-  const [trendConfigured, setTrendConfigured] = useState(true);
-  const [trendLoading, setTrendLoading] = useState(true);
+  // 이번 세션에서 분석한 결과만 모아 트렌드를 집계 (DB 전체 통계는 사용 안 함)
+  const [sessionEntries, setSessionEntries] = useState<SessionEntry[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
-  const loadTrends = useCallback(async () => {
-    setTrendLoading(true);
-    try {
-      const res = await fetch("/api/trends", { cache: "no-store" });
-      const json = await res.json();
-      setTrend(json.trend ?? null);
-      setTrendConfigured(json.configured !== false);
-    } catch {
-      setTrend(null);
-    } finally {
-      setTrendLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadTrends();
-  }, [loadTrends]);
+  const trend = useMemo(() => computeTrend(sessionEntries), [sessionEntries]);
 
   const analyze = useCallback(async () => {
     if (!content.trim()) return;
@@ -65,15 +60,25 @@ export default function Page() {
         setError(json.error ?? "분석에 실패했습니다.");
         setResult(null);
       } else {
-        setResult(json as AnalyzeResponse);
-        if (json.saved) loadTrends();
+        const data = json as AnalyzeResponse;
+        setResult(data);
+        setSessionEntries((prev) => [
+          ...prev,
+          {
+            id: makeId(),
+            created_at: new Date().toISOString(),
+            content,
+            metrics: data.metrics,
+            analysis: data.analysis,
+          },
+        ]);
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
-  }, [content, loadTrends]);
+  }, [content]);
 
   const analyzeBatch = useCallback(
     async (messages: string[]) => {
@@ -91,14 +96,26 @@ export default function Page() {
           setError(json.error ?? "일괄 분석에 실패했습니다.");
           setBatchResult(null);
         } else {
+          const data = json as BatchResponse;
           setResult(null); // 단일 결과 비우고 일괄 결과 표시
-          setBatchResult(json as BatchResponse);
+          setBatchResult(data);
           setToast(
-            `일괄 분석 완료 — 성공 ${json.ok}건${
-              json.failed ? `, 실패 ${json.failed}건` : ""
-            }${json.truncated ? ` (최대 ${json.maxBatch}건까지만 처리)` : ""}`,
+            `일괄 분석 완료 — 성공 ${data.ok}건${
+              data.failed ? `, 실패 ${data.failed}건` : ""
+            }${data.truncated ? ` (최대 ${data.maxBatch}건까지만 처리)` : ""}`,
           );
-          await loadTrends();
+          const entries = data.results
+            .filter((r) => r.ok && r.analysis && r.metrics)
+            .map<SessionEntry>((r) => ({
+              id: makeId(),
+              created_at: new Date().toISOString(),
+              content: r.content,
+              metrics: r.metrics!,
+              analysis: r.analysis!,
+            }));
+          if (entries.length) {
+            setSessionEntries((prev) => [...prev, ...entries]);
+          }
         }
         setTab("result"); // 건별 결과는 ② 분석 결과 탭에서 확인
       } catch {
@@ -108,7 +125,7 @@ export default function Page() {
         setBatchLoading(false);
       }
     },
-    [loadTrends],
+    [],
   );
 
   return (
@@ -164,13 +181,7 @@ export default function Page() {
           error={error}
         />
       )}
-      {tab === "trend" && (
-        <TrendPanel
-          trend={trend}
-          configured={trendConfigured}
-          loading={trendLoading}
-        />
-      )}
+      {tab === "trend" && <TrendPanel trend={trend} />}
     </main>
   );
 }
