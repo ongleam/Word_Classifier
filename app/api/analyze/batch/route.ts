@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyzeMessage } from "@/lib/analyze";
 import { computeMetrics } from "@/lib/sms";
-import { getSupabase, ANALYSES_TABLE } from "@/lib/supabase";
+import { getSupabase, ANALYSES_TABLE, contentHash } from "@/lib/supabase";
 import type { BatchItemResult } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -15,9 +15,13 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     contents = Array.isArray(body?.contents)
-      ? body.contents
-          .map((c: unknown) => (typeof c === "string" ? c.trim() : ""))
-          .filter((c: string) => c.length > 0 && c.length <= 4000)
+      ? Array.from(
+          new Set(
+            body.contents
+              .map((c: unknown) => (typeof c === "string" ? c.trim() : ""))
+              .filter((c: string) => c.length > 0 && c.length <= 4000),
+          ),
+        )
       : [];
   } catch {
     return NextResponse.json({ error: "잘못된 요청 형식입니다." }, { status: 400 });
@@ -56,16 +60,21 @@ export async function POST(req: Request) {
         const analysis = await analyzeMessage(content);
         ok++;
         if (supabase) {
-          const { error } = await supabase.from(ANALYSES_TABLE).insert({
-            content,
-            classification: analysis.classification,
-            confidence: analysis.confidence,
-            topic: analysis.topic,
-            keywords: analysis.keywords,
-            typo_count: analysis.typos.length,
-            byte_length: metrics.byteLength,
-            result: analysis,
-          });
+          // 같은 본문은 content_hash 로 dedup — 재분석 시 최신 결과로 갱신(upsert).
+          const { error } = await supabase.from(ANALYSES_TABLE).upsert(
+            {
+              content,
+              content_hash: contentHash(content),
+              classification: analysis.classification,
+              confidence: analysis.confidence,
+              topic: analysis.topic,
+              keywords: analysis.keywords,
+              typo_count: analysis.typos.length,
+              byte_length: metrics.byteLength,
+              result: analysis,
+            },
+            { onConflict: "content_hash" },
+          );
           if (!error) saved++;
         }
         results[index] = {

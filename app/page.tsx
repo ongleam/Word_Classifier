@@ -1,22 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageInput } from "@/components/MessageInput";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { TrendPanel } from "@/components/TrendPanel";
-import { computeTrend } from "@/lib/trends";
 import type {
   AnalyzeResponse,
   BatchResponse,
-  SessionEntry,
+  TrendData,
 } from "@/lib/types";
-
-function makeId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 type Tab = "input" | "result" | "trend";
 
@@ -37,11 +29,28 @@ export default function Page() {
 
   const [batchLoading, setBatchLoading] = useState(false);
 
-  // 이번 세션에서 분석한 결과만 모아 트렌드를 집계 (DB 전체 통계는 사용 안 함)
-  const [sessionEntries, setSessionEntries] = useState<SessionEntry[]>([]);
+  // 트렌드는 DB 전체에서 집계 (서버 /api/trends 조회)
+  const [trend, setTrend] = useState<TrendData | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const trend = useMemo(() => computeTrend(sessionEntries), [sessionEntries]);
+  const loadTrends = useCallback(async () => {
+    setTrendLoading(true);
+    try {
+      const res = await fetch("/api/trends", { cache: "no-store" });
+      const json = await res.json();
+      if (res.ok) setTrend(json as TrendData);
+    } catch {
+      /* 트렌드 조회 실패는 조용히 무시 (분석 기능과 독립) */
+    } finally {
+      setTrendLoading(false);
+    }
+  }, []);
+
+  // 트렌드 탭으로 전환하면 항상 DB 최신 상태로 다시 집계한다.
+  useEffect(() => {
+    if (tab === "trend") void loadTrends();
+  }, [tab, loadTrends]);
 
   const analyze = useCallback(async () => {
     if (!content.trim()) return;
@@ -62,23 +71,14 @@ export default function Page() {
       } else {
         const data = json as AnalyzeResponse;
         setResult(data);
-        setSessionEntries((prev) => [
-          ...prev,
-          {
-            id: makeId(),
-            created_at: new Date().toISOString(),
-            content,
-            metrics: data.metrics,
-            analysis: data.analysis,
-          },
-        ]);
+        void loadTrends(); // DB 반영분을 트렌드에 갱신
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
-  }, [content]);
+  }, [content, loadTrends]);
 
   const analyzeBatch = useCallback(
     async (messages: string[]) => {
@@ -104,18 +104,7 @@ export default function Page() {
               data.failed ? `, 실패 ${data.failed}건` : ""
             }${data.truncated ? ` (최대 ${data.maxBatch}건까지만 처리)` : ""}`,
           );
-          const entries = data.results
-            .filter((r) => r.ok && r.analysis && r.metrics)
-            .map<SessionEntry>((r) => ({
-              id: makeId(),
-              created_at: new Date().toISOString(),
-              content: r.content,
-              metrics: r.metrics!,
-              analysis: r.analysis!,
-            }));
-          if (entries.length) {
-            setSessionEntries((prev) => [...prev, ...entries]);
-          }
+          void loadTrends(); // DB 반영분을 트렌드에 갱신
         }
         setTab("result"); // 건별 결과는 ② 분석 결과 탭에서 확인
       } catch {
@@ -125,7 +114,7 @@ export default function Page() {
         setBatchLoading(false);
       }
     },
-    [],
+    [loadTrends],
   );
 
   return (
@@ -181,7 +170,13 @@ export default function Page() {
           error={error}
         />
       )}
-      {tab === "trend" && <TrendPanel trend={trend} />}
+      {tab === "trend" && (
+        <TrendPanel
+          trend={trend}
+          loading={trendLoading}
+          onRefresh={loadTrends}
+        />
+      )}
     </main>
   );
 }

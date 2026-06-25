@@ -3,8 +3,35 @@
 import { useRef, useState } from "react";
 import { computeMetrics } from "@/lib/sms";
 import { parseUpload } from "@/lib/csv";
+import { parseXlsx } from "@/lib/xlsx";
 
 const MAX_DROP_CHARS = 4000; // analyze API 본문 한도와 동일
+
+function isXlsx(file: File): boolean {
+  return (
+    /\.(xlsx|xls)$/i.test(file.name) ||
+    file.type ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    file.type === "application/vnd.ms-excel"
+  );
+}
+
+function isTextLike(file: File): boolean {
+  return (
+    file.type.startsWith("text/") ||
+    file.type === "application/json" ||
+    /\.(txt|csv|md|json)$/i.test(file.name) ||
+    file.type === ""
+  );
+}
+
+/** 파일 1건 → 메시지 배열 */
+async function parseFile(file: File): Promise<string[]> {
+  if (isXlsx(file)) {
+    return parseXlsx(await file.arrayBuffer());
+  }
+  return parseUpload(await file.text(), file.name);
+}
 
 export function MessageInput({
   value,
@@ -29,29 +56,35 @@ export function MessageInput({
   const [batch, setBatch] = useState<string[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function readFile(file: File) {
+  async function readFiles(files: File[]) {
     setDropError(null);
     setBatch(null);
-    const okType =
-      file.type.startsWith("text/") ||
-      file.type === "application/json" ||
-      /\.(txt|csv|md|json)$/i.test(file.name) ||
-      file.type === "";
-    if (!okType) {
-      setDropError("JSON 또는 텍스트 파일(.json, .txt, .csv)만 불러올 수 있습니다.");
+    if (files.length === 0) return;
+
+    const accepted = files.filter((f) => isXlsx(f) || isTextLike(f));
+    const rejected = files.length - accepted.length;
+    if (accepted.length === 0) {
+      setDropError(
+        "엑셀(.xlsx) · JSON · 텍스트 파일(.txt, .csv)만 불러올 수 있습니다.",
+      );
       return;
     }
+
     try {
-      const text = await file.text();
-      const messages = parseUpload(text, file.name);
+      // 여러 파일을 모두 읽어 메시지를 한데 모은다.
+      const lists = await Promise.all(accepted.map(parseFile));
+      const messages = lists.flat();
       if (messages.length === 0) {
         setDropError("파일에서 본문을 찾지 못했습니다.");
-      } else if (messages.length === 1) {
-        // 단일 메시지 → 입력창 채우기
+      } else if (messages.length === 1 && accepted.length === 1) {
+        // 단일 파일·단일 메시지 → 입력창 채우기
         onChange(messages[0].slice(0, MAX_DROP_CHARS));
       } else {
         // 여러 건 → 일괄 분석 모드
         setBatch(messages);
+      }
+      if (rejected > 0) {
+        setDropError(`지원하지 않는 파일 ${rejected}개는 제외했습니다.`);
       }
     } catch {
       setDropError("파일을 읽지 못했습니다.");
@@ -61,13 +94,13 @@ export function MessageInput({
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) void readFile(file);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) void readFiles(files);
   }
 
   function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) void readFile(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) void readFiles(files);
     e.target.value = ""; // 같은 파일 재선택 허용
   }
 
@@ -98,7 +131,8 @@ export function MessageInput({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".json,.txt,.csv,.md,application/json,text/*"
+        multiple
+        accept=".xlsx,.xls,.json,.txt,.csv,.md,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/*"
         onChange={handlePick}
         className="hidden"
       />
@@ -156,7 +190,7 @@ export function MessageInput({
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={
-                '점검할 마케팅 SMS/LMS 본문을 붙여넣거나, 파일을 끌어다 놓으세요.\n여러 건은 JSON 파일로 일괄 분석됩니다. 예: ["문구1", "문구2"] 또는 [{"content":"문구"}]'
+                '점검할 마케팅 SMS/LMS 본문을 붙여넣거나, 파일을 끌어다 놓으세요.\n엑셀(.xlsx) · CSV · JSON 파일을 여러 개 올리면 일괄 분석됩니다.'
               }
               rows={7}
               className={`scroll-thin w-full resize-none rounded-lg border p-3 text-sm leading-relaxed text-slate-800 outline-none focus:border-nh-green focus:ring-2 focus:ring-nh-green/20 ${
@@ -165,7 +199,7 @@ export function MessageInput({
             />
             {dragOver && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border-2 border-dashed border-nh-green bg-nh-green/5 text-sm font-medium text-nh-greenDark">
-                JSON · 텍스트 파일을 여기에 놓으세요
+                엑셀 · CSV · JSON 파일을 여기에 놓으세요 (여러 개 가능)
               </div>
             )}
           </div>

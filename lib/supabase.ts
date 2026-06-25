@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -30,3 +31,8 @@ export function getSupabase(): SupabaseClient | null {
 }
 
 export const ANALYSES_TABLE = "analyses";
+
+/** 본문 중복 제거(Dedup) 키. schema.sql 의 md5(content) 와 동일하게 맞춘다. */
+export function contentHash(content: string): string {
+  return createHash("md5").update(content, "utf8").digest("hex");
+}

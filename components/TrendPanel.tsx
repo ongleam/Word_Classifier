@@ -4,24 +4,52 @@ import { useState } from "react";
 import type { HistoryItem, TrendData } from "@/lib/types";
 import { AnalysisDetail } from "@/components/AnalysisDetail";
 
-export function TrendPanel({ trend }: { trend: TrendData | null }) {
+export function TrendPanel({
+  trend,
+  loading,
+  onRefresh,
+}: {
+  trend: TrendData | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-900">
           ③ 트렌드 · 분석 내역
         </h2>
-        {trend && (
-          <span className="text-xs text-slate-400">
-            이번 세션 {trend.total}건
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {trend && (
+            <span className="text-xs text-slate-400">전체 {trend.total}건</span>
+          )}
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-nh-green hover:text-nh-green disabled:opacity-50"
+          >
+            {loading ? "불러오는 중…" : "새로고침"}
+          </button>
+        </div>
       </div>
+
+      {loading && !trend && (
+        <p className="py-8 text-center text-sm text-slate-400">
+          DB 전체 트렌드를 불러오는 중…
+        </p>
+      )}
+
+      {!loading && !trend && (
+        <p className="py-8 text-center text-sm text-slate-400">
+          트렌드를 불러오지 못했습니다. 새로고침을 눌러 다시 시도하세요.
+        </p>
+      )}
 
       {trend && trend.total === 0 && (
         <p className="py-8 text-center text-sm text-slate-400">
-          이번 세션에 분석한 메시지가 없습니다. 본문을 점검하면 여기에
-          트렌드가 쌓입니다.
+          DB에 저장된 분석 내역이 없습니다. 본문을 점검하면 여기에 트렌드가
+          쌓입니다.
         </p>
       )}
 
@@ -148,7 +176,7 @@ function HistoryRow({ h }: { h: HistoryItem }) {
 
       {open && detail && (
         <div className="border-t border-slate-100 p-3">
-          <AnalysisDetail analysis={detail} />
+          <AnalysisDetail analysis={detail} content={content} />
         </div>
       )}
     </li>

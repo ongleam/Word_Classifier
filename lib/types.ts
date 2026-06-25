@@ -39,6 +39,7 @@ export interface MessageMetrics {
 export interface AnalyzeResponse {
   metrics: MessageMetrics;
   analysis: AnalysisResult;
+  content: string; // 분석한 본문 (오탈자 교정문 복사용)
   saved: boolean; // Supabase 저장 성공 여부
 }
 

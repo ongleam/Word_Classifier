@@ -83,7 +83,7 @@ export function AnalysisResult({
           <ComplianceBlock c={data.analysis.compliance} />
 
           {/* 오탈자 */}
-          <TypoBlock typos={data.analysis.typos} />
+          <TypoBlock typos={data.analysis.typos} content={data.content} />
         </div>
       )}
     </section>
@@ -220,7 +220,7 @@ function BatchItem({ r }: { r: BatchItemResult }) {
             </div>
           )}
           <ComplianceBlock c={a.compliance} />
-          <TypoBlock typos={a.typos} />
+          <TypoBlock typos={a.typos} content={r.content} />
         </div>
       )}
     </li>

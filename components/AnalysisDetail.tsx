@@ -1,9 +1,17 @@
 "use client";
 
-import type { AnalysisResult, Compliance } from "@/lib/types";
+import { useState } from "react";
+import type { AnalysisResult, Compliance, Typo } from "@/lib/types";
+import { applyTypoCorrections } from "@/lib/typo";
 
 /** 분류 근거·요약·키워드·표기점검·오탈자 — 단일/일괄/내역 공통 상세 블록 */
-export function AnalysisDetail({ analysis }: { analysis: AnalysisResult }) {
+export function AnalysisDetail({
+  analysis,
+  content,
+}: {
+  analysis: AnalysisResult;
+  content?: string;
+}) {
   return (
     <div className="space-y-3">
       {analysis.reasoning && (
@@ -27,7 +35,7 @@ export function AnalysisDetail({ analysis }: { analysis: AnalysisResult }) {
         </div>
       )}
       <ComplianceBlock c={analysis.compliance} />
-      <TypoBlock typos={analysis.typos} />
+      <TypoBlock typos={analysis.typos} content={content} />
     </div>
   );
 }
@@ -78,8 +86,10 @@ export function ComplianceBlock({ c }: { c: Compliance }) {
 
 export function TypoBlock({
   typos,
+  content,
 }: {
-  typos: { original: string; suggestion: string; reason: string }[];
+  typos: Typo[];
+  content?: string;
 }) {
   if (typos.length === 0) {
     return (
@@ -107,6 +117,41 @@ export function TypoBlock({
           </li>
         ))}
       </ul>
+      {content && <CorrectedCopy content={content} typos={typos} />}
+    </div>
+  );
+}
+
+/** 오탈자 검수가 끝난 본문 — 교정안을 적용한 글을 보여주고 복사 버튼 제공 */
+function CorrectedCopy({ content, typos }: { content: string; typos: Typo[] }) {
+  const [copied, setCopied] = useState(false);
+  const corrected = applyTypoCorrections(content, typos);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(corrected);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* 클립보드 권한 없음 등 — 무시 */
+    }
+  }
+
+  return (
+    <div className="mt-3 border-t border-slate-100 pt-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-500">교정된 본문</span>
+        <button
+          type="button"
+          onClick={copy}
+          className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-nh-green hover:text-nh-green"
+        >
+          {copied ? "복사됨 ✓" : "교정문 복사"}
+        </button>
+      </div>
+      <p className="whitespace-pre-wrap rounded-lg bg-emerald-50/60 p-2.5 text-sm text-slate-700">
+        {corrected}
+      </p>
     </div>
   );
 }
